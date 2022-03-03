@@ -99,12 +99,11 @@ def conv_rew_df_t_epochs_fmt(rew,cond,conf,vol,session):
     n_opt_trials = int(percentage[0]*n_trials)
     n_subopt_trials = int(percentage[1]*n_trials)
 
-
     opt_reward_idx = np.where(rew["optimal_action"]==1.0)[0]
     subopt_reward_idx = np.where(rew["optimal_action"]==0.0)[0]
 
 
-    t_epochs = pd.DataFrame(columns=["r_t0","r_t1","cp","epoch_number","reward_p_t0","session","conflict","volatility","condition","p_id_solution","action_history","chosen_action","trial_num"])
+    t_epochs = pd.DataFrame(columns=["r_t0","r_t1","cp","epoch_number","reward_p_t0","session","conflict","volatility","condition","p_id_solution","action_history","chosen_action","trial_num","RT(ms)"])
     cp = np.zeros(n_trials)
     #print(n_trials)
     cp_idx = np.where(rew["block"]!=rew["block"].shift())
@@ -140,6 +139,7 @@ def conv_rew_df_t_epochs_fmt(rew,cond,conf,vol,session):
     t_epochs["condition"] = cond
     t_epochs["volatility"] = vol
     t_epochs["session"] = session
+    t_epochs["RT(ms)"] = list(rew["RT(ms)"])
     t_epochs["trial_num"] = list(rew["trial_num"])
     print(t_epochs)
     return t_epochs
