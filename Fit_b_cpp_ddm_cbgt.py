@@ -42,6 +42,7 @@ import hddm
 
 data_dir = "./Data/processed_data/Y_maze/"
 data_target_dir = "./Data/processed_data/Y_maze/for_b_cpp_calculation/"
+data_target_dir_ideal = "./Data/processed_data/Y_maze/ideal_observer/"
 figure_dir = "./Figures/Y_maze/"
 
 plt.rcParams["figure.facecolor"] = "w"
@@ -130,6 +131,7 @@ def conv_rew_df_t_epochs_fmt(rew,cond,conf,vol,session):
     
     rew_p_t0 = np.zeros(n_trials)
     rew_p_t0[ind_t0] = 1.0
+    t_epochs["rewarded"] = list(rew["rewarded_code"])
     t_epochs["reward_p_t0"] = rew_p_t0
     t_epochs["chosen_action"] = chosen_action
     t_epochs["action_history"] = [ 0 if x == "left" else 1 for x in chosen_action]
@@ -141,9 +143,16 @@ def conv_rew_df_t_epochs_fmt(rew,cond,conf,vol,session):
     t_epochs["session"] = session
     t_epochs["RT(ms)"] = list(rew["RT(ms)"])
     t_epochs["trial_num"] = list(rew["trial_num"])
-    print(t_epochs)
+    #print(t_epochs)
     return t_epochs
     #print(t_epochs)
+    
+def generate_ideal_observer_t_epochs(t_epochs1):
+    t_epochs1["action_history"] = [ 0 if x == "left" else 1 for x in t_epochs1["p_id_solution"]]
+    t_epochs1["chosen_action"] = list(t_epochs1["p_id_solution"].copy())
+    
+    return t_epochs1
+    
     
     
 
@@ -160,6 +169,8 @@ for grp in all_conflicts.groupby(["conflict","volatility","session"]):
     conf = grp[0][0]
     vol = grp[0][1]
     sess = grp[0][2]
+    #if conf == "No" and vol == "Low" and sess == 0:
+    #    pdb.set_trace()
     rew["rewarded_code"] = [ 1 if x == "rewarded" else 0 for x in rew["rewarded"]]
     #fig,ax = pl.subplots(1,1,figsize=(10,6))
     #sns.lineplot(x="index",y="rewarded_code",hue="block",data=rew,ax=ax)
@@ -169,16 +180,23 @@ for grp in all_conflicts.groupby(["conflict","volatility","session"]):
     b_cpp_compatible_format = conv_rew_df_t_epochs_fmt(rew,cond,conf,vol,sess)
     b_cpp_compatible_format = b_cpp_compatible_format.rename(columns={'RT(ms)':'rt'})
 
+    b_cpp_compatible_io = generate_ideal_observer_t_epochs(b_cpp_compatible_format.copy())
+ 
+    b_cpp_compatible_format["r_t0"]==b_cpp_compatible_io["r_t0"]
+    print(b_cpp_compatible_format["r_t0"])
+    print(b_cpp_compatible_io["r_t0"])
+
     #fig,ax = pl.subplots(1,1,figsize=(10,6))
     #ax.plot(b_cpp_compatible_format["r_t0"],label="r_t0")
     #ax.plot(b_cpp_compatible_format["r_t1"],label="r_t1")
     #ax.legend()
     #fig.savefig(figure_dir+"Reward_generated_df_"+cond+"_"+conf+"_"+vol+"_"+str(sess)+".png")
  
-
     filename = cond+"_"+conf+"_"+vol+"_"+str(sess)+".csv"
     b_cpp_compatible_format.to_csv(data_target_dir+filename)
 
+    filename = cond+"_"+conf+"_"+vol+"_"+str(sess)+".csv"
+    b_cpp_compatible_io.to_csv(data_target_dir_ideal+filename)    
 
 # In[32]:
 
@@ -191,6 +209,8 @@ print(os.getcwd())
 #cmd = cmd + data_target_dir1
 #output = os.system(cmd)
 binary_ddm.calculation_b_cpp(data_target_dir1)
+
+binary_ddm.calculation_b_cpp(data_target_dir_ideal)
 
 
 # In[33]:
@@ -205,46 +225,50 @@ binary_ddm.calculation_b_cpp(data_target_dir1)
 # In[38]:
 
 
-#b_cpp_path = '/home/bahuguna/Work/CBGT_CMU/cbgt2_plasticity/Data/competition/for_b_cpp_calculation/simulated_data/'
-b_cpp_path = data_target_dir1+'/simulated_data/'
+def add_b_cpp_df(b_cpp_path,data_target_dir):
 
-files = glob.glob(b_cpp_path+"*[0-9]*.pkl")
-import pickle
+    files = glob.glob(b_cpp_path+"*[0-9]*.pkl")
+    new_data_target_dir = '/'.join(b_cpp_path.split('/')[:-2])
+    final_b_cpp_df = pd.DataFrame()
 
-final_b_cpp_df = pd.DataFrame()
+    for f in files:
+        if "with" in f:
+            continue
+        print(f)
+        cond = f.split('/')[-1].split('sim_condition_')[1].split('_')[0]
+        conf = f.split('/')[-1].split('_conflict_')[1].split('_')[0]
+        volatility = f.split('/')[-1].split('volatility_')[1].split('_')[0]
+        session = f.split('/')[-1].split('session_')[1].split('.pkl')[0]
 
-for f in files:
-    if "with" in f:
-        continue
-    print(f)
-    cond = f.split('/')[-1].split('sim_condition_')[1].split('_')[0]
-    conf = f.split('/')[-1].split('_conflict_')[1].split('_')[0]
-    volatility = f.split('/')[-1].split('volatility_')[1].split('_')[0]
-    session = f.split('/')[-1].split('session_')[1].split('.pkl')[0]
-    
-    filesrc = cond+"_"+conf+"_"+volatility+"_"+session+".csv"
-    filedest = cond+"_"+conf+"_"+volatility+"_"+session+"_with_b_cpp.csv"
-    temp = pd.read_csv(data_target_dir1+filesrc)
-        
-    sim = pickle.load(open(f,"rb"))
-    ideal_B = sim.ideal_B
-    cpp = sim.CPP
-    b_t0 = sim.B[:,0]
-    b_t1 = sim.B[:,1]
-    MC = sim.MC
-    
-    temp["cpp"] = cpp
-    temp["ideal_B"] = ideal_B
-    temp["b_t0"] = b_t0 
-    temp["b_t1"] = b_t1
-    temp["MC"] = MC
-    temp.to_csv(data_target_dir+filedest)
-    final_b_cpp_df = final_b_cpp_df.append(temp)
+        filesrc = cond+"_"+conf+"_"+volatility+"_"+session+".csv"
+        filedest = cond+"_"+conf+"_"+volatility+"_"+session+"_with_b_cpp.csv"
+        temp = pd.read_csv(data_target_dir+filesrc)
+
+        sim = pickle.load(open(f,"rb"))
+        ideal_B = sim.ideal_B
+        cpp = sim.CPP
+        b_t0 = sim.B[:,0]
+        b_t1 = sim.B[:,1]
+        MC = sim.MC
+
+        temp["cpp"] = cpp
+        temp["ideal_B"] = ideal_B
+        temp["b_t0"] = b_t0 
+        temp["b_t1"] = b_t1
+        temp["MC"] = MC
+        temp.to_csv(new_data_target_dir+filedest)
+        final_b_cpp_df = final_b_cpp_df.append(temp)
+
+
+        print(temp)
     
     
-    print(temp)
-    
-final_b_cpp_df.to_csv(data_target_dir1+"for_av_fits_hddm.csv")
+    final_b_cpp_df.to_csv(new_data_target_dir+"/"+"for_av_fits_hddm.csv")
+
+
+add_b_cpp_df(data_target_dir1+'/simulated_data/',data_target_dir1)
+add_b_cpp_df(data_target_dir_ideal+'/simulated_data/',data_target_dir_ideal)
+
 
 
 # In[ ]:
@@ -256,19 +280,6 @@ final_b_cpp_df.to_csv(data_target_dir1+"for_av_fits_hddm.csv")
 # In[39]:
 
 
-final_b_cpp_df
-
-
-# In[14]:
-
-
-sns.lineplot
-
-
-# In[40]:
-
-
-final_b_cpp_df.loc[final_b_cpp_df["conflict"]=="Low"]
 
 
 # In[ ]:
